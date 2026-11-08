@@ -47,7 +47,7 @@ func parseArgs(argv []string) (options, error) {
 		case arg == "--curlp-version":
 			opts.showVersion = true
 			continue
-		case arg == "--curlp-no-ca":
+		case arg == "--no-curlp-ca":
 			opts.noCA = true
 			continue
 		case arg == "--no-pac":

@@ -25,7 +25,7 @@ Usage: curlp [curlp options] [curl arguments] URL
 Options of curlp (all other arguments go to curl):
   --pac-file <path|uri>  Use this PAC file instead of searching for one.
   --no-pac               Do not use a PAC file for this call (wins over --pac-file).
-  --curlp-no-ca          Do not trust the additional certificates for this call.
+  --no-curlp-ca          Do not trust the additional certificates for this call.
   --curlp-version        Print the version of curlp.
 
 Environment:

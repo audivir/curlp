@@ -50,7 +50,7 @@ func TestParseArgs(t *testing.T) {
 		},
 		{
 			name: "own CA switch is not forwarded",
-			argv: []string{"--curlp-no-ca", "https://x"},
+			argv: []string{"--no-curlp-ca", "https://x"},
 			want: options{noCA: true, curlArgs: []string{"https://x"}},
 		},
 	}

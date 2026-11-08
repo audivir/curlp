@@ -32,7 +32,7 @@ curlp --pac-file ./proxy.pac https://intranet.example.com
 - `--no-pac` uses no PAC file for this call, so `curl` keeps the proxy settings of the
   environment. It wins over `--pac-file`.
 - `--curlp-version` prints the version of `curlp`.
-- `--curlp-no-ca` skips the additional certificates for this call (see Certificates).
+- `--no-curlp-ca` skips the additional certificates for this call (see Certificates).
 - `CURLP_CURL_PATH` selects the `curl` to run, as a path or as a name looked up in `PATH`. A
   value that cannot be found, or that is `curlp` itself, is an error.
 - `-v` shows which PAC file and proxy `curlp` uses, besides the output of `curl`.
@@ -75,7 +75,7 @@ their `CERTIFICATE` blocks, so private keys are never copied. `curlp` writes the
 to `~/.cache/curlp/ca-bundle.pem` and gives it to `curl` with `--cacert`.
 
 This is skipped if the arguments contain `--cacert`, `--capath`, `-k`, or `--insecure`, or with
-`--curlp-no-ca` for a single call. Setting `CURLP_CA_PATH` to an empty value turns it off for
+`--no-curlp-ca` for a single call. Setting `CURLP_CA_PATH` to an empty value turns it off for
 good, while leaving it unset uses `~/.config/ssl`.
 
 Every certificate in that location is trusted by `curlp`, so only put certificate authorities
