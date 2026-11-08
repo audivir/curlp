@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"net/http"
+	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -15,7 +16,7 @@ func testConfig(t *testing.T, log *bytes.Buffer) config {
 	root := t.TempDir()
 	return config{
 		log:       logger{out: log, verbose: true},
-		getenv:    func(string) string { return "" },
+		lookupEnv: func(string) (string, bool) { return "", false },
 		cwd:       filepath.Join(root, "cwd"),
 		homeDir:   filepath.Join(root, "home"),
 		configDir: filepath.Join(root, "home", ".config"),
@@ -88,6 +89,109 @@ func TestPlanCurlAddsCABundleBeforeUserArguments(t *testing.T) {
 	bundle := filepath.Join(cfg.homeDir, ".cache", "curlp", "ca-bundle.pem")
 	if want := []string{"--cacert", bundle, "-s", "https://x"}; !reflect.DeepEqual(p.args, want) {
 		t.Errorf("args = %v, want %v", p.args, want)
+	}
+}
+
+func TestPlanCurlCAControls(t *testing.T) {
+	custom := t.TempDir()
+	writeFile(t, filepath.Join(custom, "other.pem"), string(testCert(t, 9)))
+
+	tests := []struct {
+		name   string
+		opts   options
+		env    map[string]string
+		wantCA bool
+	}{
+		{name: "default dir", wantCA: true},
+		{name: "per call switch", opts: options{noCA: true}},
+		{name: "empty variable turns it off", env: map[string]string{"CURLP_CA_PATH": ""}},
+		{name: "variable selects another dir", env: map[string]string{"CURLP_CA_PATH": custom}, wantCA: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var log bytes.Buffer
+			cfg := testConfig(t, &log)
+			writeFile(t, filepath.Join(cfg.homeDir, ".config", "ssl", "ca.pem"), string(testCert(t, 1)))
+			cfg.lookupEnv = func(name string) (string, bool) {
+				value, ok := tt.env[name]
+				return value, ok
+			}
+			tt.opts.curlArgs = []string{"-s", "https://x"}
+
+			p := planCurl(tt.opts, cfg)
+			hasCA := len(p.args) > 2 && p.args[0] == "--cacert"
+			if hasCA != tt.wantCA {
+				t.Errorf("args = %v, want a CA bundle: %v", p.args, tt.wantCA)
+			}
+			if !hasCA && !reflect.DeepEqual(p.args, tt.opts.curlArgs) {
+				t.Errorf("without a bundle the arguments must stay unchanged, got %v", p.args)
+			}
+		})
+	}
+}
+
+func executable(t *testing.T, path string) {
+	t.Helper()
+	writeFile(t, path, "#!/bin/sh\n")
+	if err := os.Chmod(path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func envOf(vars map[string]string) func(string) (string, bool) {
+	return func(name string) (string, bool) {
+		value, ok := vars[name]
+		return value, ok
+	}
+}
+
+func TestFindCurlExplicitPath(t *testing.T) {
+	dir := t.TempDir()
+	curl, self := filepath.Join(dir, "my-curl"), filepath.Join(dir, "curlp")
+	executable(t, curl)
+	executable(t, self)
+	writeFile(t, filepath.Join(dir, "plain-file"), "x")
+
+	if got, err := findCurl(envOf(map[string]string{"CURLP_CURL_PATH": curl}), self); err != nil || got != curl {
+		t.Errorf("explicit path: got %q, %v", got, err)
+	}
+	for name, value := range map[string]string{
+		"not executable": filepath.Join(dir, "plain-file"),
+		"missing":        filepath.Join(dir, "missing"),
+		"curlp itself":   self,
+	} {
+		if got, err := findCurl(envOf(map[string]string{"CURLP_CURL_PATH": value}), self); err == nil {
+			t.Errorf("%s must be an error, not a fallback to another curl, got %q", name, got)
+		}
+	}
+}
+
+func TestFindCurlSkipsItselfInPATH(t *testing.T) {
+	root := t.TempDir()
+	first, second := filepath.Join(root, "first"), filepath.Join(root, "second")
+	self := filepath.Join(first, "curlp")
+	executable(t, self)
+	real := filepath.Join(second, "curl")
+	executable(t, real)
+	pathVar := strings.Join([]string{"", first, second}, string(os.PathListSeparator))
+
+	// curlp installed as "curl" through a symlink or a hard link comes first in PATH.
+	for name, link := range map[string]func(string, string) error{"symlink": os.Symlink, "hard link": os.Link} {
+		t.Run(name, func(t *testing.T) {
+			alias := filepath.Join(first, "curl")
+			_ = os.Remove(alias)
+			if err := link(self, alias); err != nil {
+				t.Fatal(err)
+			}
+			got, err := findCurl(envOf(map[string]string{"PATH": pathVar}), self)
+			if err != nil || got != real {
+				t.Errorf("got %q, %v, want the curl after curlp in PATH", got, err)
+			}
+		})
+	}
+
+	if _, err := findCurl(envOf(map[string]string{"PATH": first}), self); err == nil {
+		t.Error("with only curlp named curl in PATH there is nothing to run")
 	}
 }
 

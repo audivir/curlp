@@ -2,6 +2,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,19 +15,34 @@ import (
 // version is set at release time with -ldflags "-X main.version=...".
 var version = "dev"
 
-const helpText = `curlp options:
-  Wraps curl with automatic PAC-based proxy resolution.
+// activeVar is set for the curl that curlp starts, to detect a curlp that runs itself.
+const activeVar = "CURLP_ACTIVE"
+
+const helpText = `curlp: curl with automatic PAC-based proxy selection
+
+Usage: curlp [curlp options] [curl arguments] URL
+
+Options of curlp (all other arguments go to curl):
   --pac-file <path|uri>  Use this PAC file instead of searching for one.
+  --curlp-no-ca          Do not trust the additional certificates for this call.
   --curlp-version        Print the version of curlp.
-  PAC file location (first match wins):
-    --pac-file
-    $CURLP_PAC_URI
-    ./proxy.pac
-    $XDG_CONFIG_HOME/curlp/proxy.pac (or ~/.config/curlp/proxy.pac)
-    ~/proxy.pac
-    automatic proxy configuration URL of macOS
-  All certificates in $CURLP_CA_PATH (a file or dir, default ~/.config/ssl) are trusted
-  next to the standard roots, unless --cacert, --capath, or -k is given.
+
+Environment:
+  CURLP_PAC_URI          PAC file to use, as a path, file URI, or http(s) URL.
+  CURLP_CURL_PATH        The curl to run, as a path or a name looked up in PATH.
+                         Without it, the first curl in PATH that is not curlp runs.
+  CURLP_CA_PATH          File or directory of certificates to trust next to the standard
+                         roots (default ~/.config/ssl). Empty turns this off.
+
+PAC file search (first match wins):
+  1. --pac-file
+  2. $CURLP_PAC_URI
+  3. ./proxy.pac
+  4. $XDG_CONFIG_HOME/curlp/proxy.pac (or ~/.config/curlp/proxy.pac)
+  5. ~/proxy.pac
+  6. the automatic proxy configuration URL of macOS, if enabled in the network settings
+
+The additional certificates are skipped if curl gets --cacert, --capath, or -k.
 `
 
 // logger writes the messages of curlp to out, with the info messages only if verbose is set.
@@ -48,7 +64,7 @@ func (l logger) warnf(format string, args ...any) {
 // config holds what planCurl reads from its surroundings, so that tests can replace it.
 type config struct {
 	log       logger
-	getenv    func(string) string
+	lookupEnv func(string) (string, bool)
 	cwd       string
 	homeDir   string
 	configDir string
@@ -67,7 +83,7 @@ func newConfig(log logger) config {
 	}
 	return config{
 		log:       log,
-		getenv:    os.Getenv,
+		lookupEnv: os.LookupEnv,
 		cwd:       cwd,
 		homeDir:   home,
 		configDir: configDir,
@@ -90,27 +106,32 @@ type plan struct {
 func planCurl(opts options, cfg config) plan {
 	p := plan{args: opts.curlArgs, env: map[string]string{}}
 
-	caPath := cfg.getenv("CURLP_CA_PATH")
-	if caPath == "" {
+	// a set but empty CURLP_CA_PATH turns the additional certificates off.
+	caPath, caSet := cfg.lookupEnv("CURLP_CA_PATH")
+	if !caSet {
 		caPath = filepath.Join(cfg.homeDir, ".config", "ssl")
 	}
-	bundlePath := filepath.Join(cfg.homeDir, ".cache", "curlp", "ca-bundle.pem")
-	caArgs, err := caBundleArgs(opts.curlArgs, caPath, bundlePath)
-	if err != nil {
-		cfg.log.warnf("Could not prepare the CA bundle: %v", err)
+	if !opts.noCA && caPath != "" {
+		bundlePath := filepath.Join(cfg.homeDir, ".cache", "curlp", "ca-bundle.pem")
+		caArgs, err := caBundleArgs(opts.curlArgs, caPath, bundlePath)
+		if err != nil {
+			cfg.log.warnf("Could not prepare the CA bundle: %v", err)
+		}
+		p.args = append(caArgs, opts.curlArgs...)
 	}
-	p.args = append(caArgs, opts.curlArgs...)
 
 	override := opts.pacFile
 	if override != "" {
+		var err error
 		if override, err = toPACLocation(override); err != nil {
 			cfg.log.warnf("Invalid --pac-file: %v", err)
 			return p
 		}
 	}
+	envURI, _ := cfg.lookupEnv("CURLP_PAC_URI")
 	search := pacSearch{
 		override:  override,
-		envURI:    cfg.getenv("CURLP_PAC_URI"),
+		envURI:    envURI,
 		cwd:       cfg.cwd,
 		configDir: cfg.configDir,
 		homeDir:   cfg.homeDir,
@@ -160,6 +181,46 @@ func planCurl(opts options, cfg config) plan {
 	return p
 }
 
+// findCurl returns the curl to run: $CURLP_CURL_PATH if set, otherwise the first curl in PATH.
+//
+// The value of $CURLP_CURL_PATH is a path or a name that is looked up in PATH, and it must be
+// executable. Any candidate that is the same file as self is skipped when searching PATH, so
+// curlp can be installed under the name curl. A $CURLP_CURL_PATH that names self is an error.
+func findCurl(lookupEnv func(string) (string, bool), self string) (string, error) {
+	if name, ok := lookupEnv("CURLP_CURL_PATH"); ok && name != "" {
+		path, err := exec.LookPath(name)
+		if err != nil {
+			return "", fmt.Errorf("cannot find curl %q: %w", name, err)
+		}
+		if sameFile(path, self) {
+			return "", fmt.Errorf("CURLP_CURL_PATH %q is curlp itself", name)
+		}
+		return path, nil
+	}
+
+	pathVar, _ := lookupEnv("PATH")
+	for _, dir := range filepath.SplitList(pathVar) {
+		if dir == "" {
+			continue
+		}
+		path, err := exec.LookPath(filepath.Join(dir, "curl"))
+		if err == nil && !sameFile(path, self) {
+			return path, nil
+		}
+	}
+	return "", errors.New("curl not found in PATH (curlp itself is skipped)")
+}
+
+// sameFile reports whether a and b are the same file, following symlinks and hard links.
+func sameFile(a, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
+	infoA, errA := os.Stat(a)
+	infoB, errB := os.Stat(b)
+	return errA == nil && errB == nil && os.SameFile(infoA, infoB)
+}
+
 // withEnv returns env with the variables in set replacing any earlier value.
 //
 // An exec'd process reads the first entry of a variable, so a plain append would not override.
@@ -188,13 +249,19 @@ func run(argv []string) int {
 		return 0
 	}
 
-	curlPath, err := exec.LookPath("curl")
+	// the guard catches a copy of curlp that findCurl cannot recognize as itself.
+	if _, active := os.LookupEnv(activeVar); active {
+		_, _ = fmt.Fprintln(os.Stderr, "curlp: called by itself; set CURLP_CURL_PATH to the real curl")
+		return 1
+	}
+	self, _ := os.Executable()
+	curlPath, err := findCurl(os.LookupEnv, self)
 	if err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, "curlp: curl not found in PATH")
+		_, _ = fmt.Fprintf(os.Stderr, "curlp: %v\n", err)
 		return 127
 	}
 
-	env := os.Environ()
+	env := withEnv(os.Environ(), map[string]string{activeVar: "1"})
 	if opts.help {
 		_, _ = fmt.Fprint(os.Stderr, helpText)
 		return runCurl(curlPath, opts.curlArgs, env)

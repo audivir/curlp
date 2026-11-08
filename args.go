@@ -19,6 +19,7 @@ var (
 type options struct {
 	pacFile     string
 	showVersion bool
+	noCA        bool
 	verbose     bool
 	help        bool
 	curlArgs    []string
@@ -44,6 +45,9 @@ func parseArgs(argv []string) (options, error) {
 			continue
 		case arg == "--curlp-version":
 			opts.showVersion = true
+			continue
+		case arg == "--curlp-no-ca":
+			opts.noCA = true
 			continue
 		case arg == "--help" || helpFlagRE.MatchString(arg):
 			opts.help = true
