@@ -29,6 +29,8 @@ curlp --pac-file ./proxy.pac https://intranet.example.com
 ```
 
 - `--pac-file <path|uri>` uses this PAC file and skips the search.
+- `--no-pac` uses no PAC file for this call, so `curl` keeps the proxy settings of the
+  environment. It wins over `--pac-file`.
 - `--curlp-version` prints the version of `curlp`.
 - `--curlp-no-ca` skips the additional certificates for this call (see Certificates).
 - `CURLP_CURL_PATH` selects the `curl` to run, as a path or as a name looked up in `PATH`. A

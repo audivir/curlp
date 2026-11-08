@@ -44,6 +44,11 @@ func TestParseArgs(t *testing.T) {
 			want: options{showVersion: true},
 		},
 		{
+			name: "PAC switch is not forwarded and coexists with the PAC file option",
+			argv: []string{"--no-pac", "--pac-file", "a.pac", "http://x"},
+			want: options{noPAC: true, pacFile: "a.pac", curlArgs: []string{"http://x"}},
+		},
+		{
 			name: "own CA switch is not forwarded",
 			argv: []string{"--curlp-no-ca", "https://x"},
 			want: options{noCA: true, curlArgs: []string{"https://x"}},

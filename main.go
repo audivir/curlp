@@ -24,6 +24,7 @@ Usage: curlp [curlp options] [curl arguments] URL
 
 Options of curlp (all other arguments go to curl):
   --pac-file <path|uri>  Use this PAC file instead of searching for one.
+  --no-pac               Do not use a PAC file for this call (wins over --pac-file).
   --curlp-no-ca          Do not trust the additional certificates for this call.
   --curlp-version        Print the version of curlp.
 
@@ -118,6 +119,11 @@ func planCurl(opts options, cfg config) plan {
 			cfg.log.warnf("Could not prepare the CA bundle: %v", err)
 		}
 		p.args = append(caArgs, opts.curlArgs...)
+	}
+
+	if opts.noPAC {
+		cfg.log.infof("PAC disabled; forwarding args to curl without a proxy")
+		return p
 	}
 
 	override := opts.pacFile

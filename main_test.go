@@ -49,6 +49,22 @@ func TestPlanCurlSetsBothProxyVariablesFromPAC(t *testing.T) {
 	}
 }
 
+func TestPlanCurlNoPACSkipsEvenAnExplicitPACFile(t *testing.T) {
+	var log bytes.Buffer
+	cfg := testConfig(t, &log)
+	pac := filepath.Join(t.TempDir(), "proxy.pac")
+	writeFile(t, pac, clusterPAC)
+	writeFile(t, filepath.Join(cfg.configDir, "curlp", "proxy.pac"), clusterPAC)
+
+	p := planCurl(options{noPAC: true, pacFile: pac, curlArgs: []string{"git.example.test"}}, cfg)
+	if len(p.env) != 0 {
+		t.Errorf("--no-pac must set no proxy, got %v", p.env)
+	}
+	if !strings.Contains(log.String(), "PAC disabled") {
+		t.Errorf("log = %q", log.String())
+	}
+}
+
 func TestPlanCurlWithoutPACOrWithBrokenPAC(t *testing.T) {
 	var log bytes.Buffer
 	cfg := testConfig(t, &log)
