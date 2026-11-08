@@ -38,10 +38,9 @@ Environment:
 PAC file search (first match wins):
   1. --pac-file
   2. $CURLP_PAC_URI
-  3. ./proxy.pac
-  4. $XDG_CONFIG_HOME/curlp/proxy.pac (or ~/.config/curlp/proxy.pac)
-  5. ~/proxy.pac
-  6. the automatic proxy configuration URL of macOS, if enabled in the network settings
+  3. $XDG_CONFIG_HOME/curlp/proxy.pac (or ~/.config/curlp/proxy.pac)
+  4. ~/proxy.pac
+  5. the automatic proxy configuration URL of macOS, if enabled in the network settings
 
 The additional certificates are skipped if curl gets --cacert, --capath, or -k.
 `
@@ -66,7 +65,6 @@ func (l logger) warnf(format string, args ...any) {
 type config struct {
 	log       logger
 	lookupEnv func(string) (string, bool)
-	cwd       string
 	homeDir   string
 	configDir string
 	systemPAC func() (string, error)
@@ -77,7 +75,6 @@ type config struct {
 // newConfig returns the config for the running process.
 func newConfig(log logger) config {
 	home, _ := os.UserHomeDir()
-	cwd, _ := os.Getwd()
 	configDir := os.Getenv("XDG_CONFIG_HOME")
 	if configDir == "" {
 		configDir = filepath.Join(home, ".config")
@@ -85,7 +82,6 @@ func newConfig(log logger) config {
 	return config{
 		log:       log,
 		lookupEnv: os.LookupEnv,
-		cwd:       cwd,
 		homeDir:   home,
 		configDir: configDir,
 		systemPAC: systemPACURL,
@@ -138,7 +134,6 @@ func planCurl(opts options, cfg config) plan {
 	search := pacSearch{
 		override:  override,
 		envURI:    envURI,
-		cwd:       cfg.cwd,
 		configDir: cfg.configDir,
 		homeDir:   cfg.homeDir,
 		system: func() string {

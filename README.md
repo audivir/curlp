@@ -51,7 +51,6 @@ The first match wins:
 
 1. `--pac-file`
 1. `$CURLP_PAC_URI`
-1. `proxy.pac` in the current directory
 1. `$XDG_CONFIG_HOME/curlp/proxy.pac` (or `~/.config/curlp/proxy.pac`)
 1. `~/proxy.pac`
 1. the automatic proxy configuration URL of macOS, if enabled in the network settings

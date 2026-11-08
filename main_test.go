@@ -17,7 +17,6 @@ func testConfig(t *testing.T, log *bytes.Buffer) config {
 	return config{
 		log:       logger{out: log, verbose: true},
 		lookupEnv: func(string) (string, bool) { return "", false },
-		cwd:       filepath.Join(root, "cwd"),
 		homeDir:   filepath.Join(root, "home"),
 		configDir: filepath.Join(root, "home", ".config"),
 		systemPAC: func() (string, error) { return "", nil },

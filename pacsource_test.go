@@ -22,11 +22,10 @@ func writeFile(t *testing.T, path, content string) {
 
 func TestPACSearchOrder(t *testing.T) {
 	root := t.TempDir()
-	cwd, configDir, home := filepath.Join(root, "cwd"), filepath.Join(root, "cfg"), filepath.Join(root, "home")
+	configDir, home := filepath.Join(root, "cfg"), filepath.Join(root, "home")
 	search := pacSearch{
 		override:  "",
 		envURI:    "",
-		cwd:       cwd,
 		configDir: configDir,
 		homeDir:   home,
 		system:    func() string { return "http://system/proxy.pac" },
@@ -44,10 +43,6 @@ func TestPACSearchOrder(t *testing.T) {
 	if got := search.find(); !strings.HasSuffix(got, "/cfg/curlp/proxy.pac") {
 		t.Errorf("config file must beat home: got %q", got)
 	}
-	writeFile(t, filepath.Join(cwd, "proxy.pac"), "cwd")
-	if got := search.find(); !strings.HasSuffix(got, "/cwd/proxy.pac") {
-		t.Errorf("current dir must beat config: got %q", got)
-	}
 
 	search.envURI = "http://env/proxy.pac"
 	if got := search.find(); got != "http://env/proxy.pac" {
@@ -59,12 +54,23 @@ func TestPACSearchOrder(t *testing.T) {
 	}
 }
 
-func TestPACSearchIgnoresDirectoryNamedProxyPAC(t *testing.T) {
+func TestPACSearchIgnoresCurrentDirectory(t *testing.T) {
+	// a proxy.pac in a downloaded repository must not decide where the requests go.
 	cwd := t.TempDir()
-	if err := os.Mkdir(filepath.Join(cwd, "proxy.pac"), 0o755); err != nil {
+	writeFile(t, filepath.Join(cwd, "proxy.pac"), clusterPAC)
+	t.Chdir(cwd)
+	search := pacSearch{configDir: t.TempDir(), homeDir: t.TempDir()}
+	if got := search.find(); got != "" {
+		t.Errorf("got %q, want no PAC", got)
+	}
+}
+
+func TestPACSearchIgnoresDirectoryNamedProxyPAC(t *testing.T) {
+	configDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(configDir, "curlp", "proxy.pac"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	search := pacSearch{cwd: cwd, configDir: t.TempDir(), homeDir: t.TempDir()}
+	search := pacSearch{configDir: configDir, homeDir: t.TempDir()}
 	if got := search.find(); got != "" {
 		t.Errorf("got %q, want no PAC", got)
 	}

@@ -41,7 +41,6 @@ func fileURIPath(u *url.URL) string {
 type pacSearch struct {
 	override  string
 	envURI    string
-	cwd       string
 	configDir string
 	homeDir   string
 	system    func() string
@@ -49,8 +48,8 @@ type pacSearch struct {
 
 // find returns the location of the first PAC file found, or an empty string.
 //
-// The order is the override, the environment, proxy.pac in the current dir, in the config dir of
-// curlp, and in the home dir, and finally the PAC configured in the system.
+// The order is the override, the environment, proxy.pac in the config dir of curlp and in the
+// home dir, and finally the PAC configured in the system.
 func (s pacSearch) find() string {
 	if s.override != "" {
 		return s.override
@@ -61,9 +60,6 @@ func (s pacSearch) find() string {
 	candidates := []string{
 		filepath.Join(s.configDir, "curlp", "proxy.pac"),
 		filepath.Join(s.homeDir, "proxy.pac"),
-	}
-	if s.cwd != "" {
-		candidates = append([]string{filepath.Join(s.cwd, "proxy.pac")}, candidates...)
 	}
 	for _, candidate := range candidates {
 		if info, err := os.Stat(candidate); err == nil && info.Mode().IsRegular() {
