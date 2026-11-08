@@ -1,0 +1,13 @@
+# Changes here will be overwritten by Copier
+_commit: '6196493'
+_src_path: gh:audivir/copier-template
+description: curl wrapper that resolves proxies from PAC files and trusts local CAs
+github_org: audivir
+go_module_path: github.com/audivir/curlp
+go_version: '1.27'
+musl_build: static
+project_name: curlp
+project_slug: curlp
+project_type: go
+publishable: true
+remove_tabs_extra_exclude: ''
