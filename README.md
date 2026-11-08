@@ -32,6 +32,10 @@ curlp --pac-file ./proxy.pac https://intranet.example.com
 - `--no-pac` uses no PAC file for this call, so `curl` keeps the proxy settings of the
   environment. It wins over `--pac-file`.
 - `--curlp-version` prints the version of `curlp`.
+- `--curlp-env <url>` prints the environment for another program that requests this URL, then
+  exits without running `curl`: `HTTPS_PROXY` and `HTTP_PROXY` if the PAC selects a proxy, and
+  `SSL_CERT_FILE` with the bundle of the additional certificates if there are any. One
+  `NAME=value` per line, nothing for a direct request without extra certificates.
 - `--no-curlp-ca` skips the additional certificates for this call (see Certificates).
 - `CURLP_CURL_PATH` selects the `curl` to run, as a path or as a name looked up in `PATH`. A
   value that cannot be found, or that is `curlp` itself, is an error.

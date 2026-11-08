@@ -220,3 +220,32 @@ func TestWithEnvReplacesInheritedValues(t *testing.T) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 }
+
+func TestEnvLines(t *testing.T) {
+	var log bytes.Buffer
+	cfg := testConfig(t, &log)
+	writeFile(t, filepath.Join(cfg.configDir, "curlp", "proxy.pac"), clusterPAC)
+	writeFile(t, filepath.Join(cfg.homeDir, ".config", "ssl", "ca.pem"), string(testCert(t, 1)))
+	bundle := filepath.Join(cfg.homeDir, ".cache", "curlp", "ca-bundle.pem")
+
+	want := []string{
+		"HTTPS_PROXY=socks5://127.0.0.1:1111",
+		"HTTP_PROXY=socks5://127.0.0.1:1111",
+		"SSL_CERT_FILE=" + bundle,
+	}
+	if got := envLines("https://git.example.test", options{}, cfg); !reflect.DeepEqual(got, want) {
+		t.Errorf("proxied host: got %v, want %v", got, want)
+	}
+
+	if got := envLines("https://example.com", options{}, cfg); !reflect.DeepEqual(got, want[2:]) {
+		t.Errorf("direct host: got %v, want %v", got, want[2:])
+	}
+
+	if got := envLines("https://git.example.test", options{noCA: true}, cfg); !reflect.DeepEqual(got, want[:2]) {
+		t.Errorf("--no-curlp-ca: got %v, want %v", got, want[:2])
+	}
+
+	if got := envLines("https://git.example.test", options{noPAC: true, noCA: true}, cfg); len(got) != 0 {
+		t.Errorf("nothing to set: got %v", got)
+	}
+}

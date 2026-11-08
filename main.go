@@ -27,6 +27,10 @@ Options of curlp (all other arguments go to curl):
   --no-pac               Do not use a PAC file for this call (wins over --pac-file).
   --no-curlp-ca          Do not trust the additional certificates for this call.
   --curlp-version        Print the version of curlp.
+  --curlp-env <url>      Print the environment for a program other than curl that requests
+                         this URL, one NAME=value per line, and exit: HTTPS_PROXY and
+                         HTTP_PROXY if the PAC selects a proxy, and SSL_CERT_FILE with the
+                         bundle of the additional certificates if there are any.
 
 Environment:
   CURLP_PAC_URI          PAC file to use, as a path, file URI, or http(s) URL.
@@ -94,6 +98,8 @@ func newConfig(log logger) config {
 type plan struct {
 	args []string
 	env  map[string]string
+	// caBundle is the bundle with the additional certificates, if planCurl made one.
+	caBundle string
 }
 
 // planCurl decides which proxy and CA bundle curl gets for the request in opts.
@@ -115,6 +121,9 @@ func planCurl(opts options, cfg config) plan {
 			cfg.log.warnf("Could not prepare the CA bundle: %v", err)
 		}
 		p.args = append(caArgs, opts.curlArgs...)
+		if len(caArgs) == 2 {
+			p.caBundle = bundlePath
+		}
 	}
 
 	if opts.noPAC {
@@ -182,6 +191,23 @@ func planCurl(opts options, cfg config) plan {
 	return p
 }
 
+// envLines returns the environment for another program that requests rawURL, as NAME=value.
+//
+// The program is not curl, so the proxy is given as HTTPS_PROXY and HTTP_PROXY, and the
+// additional certificates as SSL_CERT_FILE.
+func envLines(rawURL string, opts options, cfg config) []string {
+	opts.curlArgs = []string{rawURL}
+	p := planCurl(opts, cfg)
+	var lines []string
+	if proxy := p.env["https_proxy"]; proxy != "" {
+		lines = append(lines, "HTTPS_PROXY="+proxy, "HTTP_PROXY="+proxy)
+	}
+	if p.caBundle != "" {
+		lines = append(lines, "SSL_CERT_FILE="+p.caBundle)
+	}
+	return lines
+}
+
 // findCurl returns the curl to run: $CURLP_CURL_PATH if set, otherwise the first curl in PATH.
 //
 // The value of $CURLP_CURL_PATH is a path or a name that is looked up in PATH, and it must be
@@ -247,6 +273,14 @@ func run(argv []string) int {
 	}
 	if opts.showVersion {
 		fmt.Println("curlp", version)
+		return 0
+	}
+
+	if opts.envURL != "" {
+		cfg := newConfig(logger{out: os.Stderr, verbose: opts.verbose})
+		for _, line := range envLines(opts.envURL, opts, cfg) {
+			fmt.Println(line)
+		}
 		return 0
 	}
 

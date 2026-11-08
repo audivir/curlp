@@ -19,6 +19,7 @@ var (
 type options struct {
 	pacFile     string
 	showVersion bool
+	envURL      string
 	noCA        bool
 	noPAC       bool
 	verbose     bool
@@ -43,6 +44,16 @@ func parseArgs(argv []string) (options, error) {
 			continue
 		case strings.HasPrefix(arg, "--pac-file="):
 			opts.pacFile = strings.TrimPrefix(arg, "--pac-file=")
+			continue
+		case arg == "--curlp-env":
+			if i+1 >= len(argv) {
+				return options{}, errors.New("option --curlp-env: requires parameter")
+			}
+			opts.envURL = argv[i+1]
+			i++
+			continue
+		case strings.HasPrefix(arg, "--curlp-env="):
+			opts.envURL = strings.TrimPrefix(arg, "--curlp-env=")
 			continue
 		case arg == "--curlp-version":
 			opts.showVersion = true
