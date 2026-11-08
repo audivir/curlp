@@ -30,7 +30,16 @@ curlp --pac-file ./proxy.pac https://intranet.example.com
 
 - `--pac-file <path|uri>` uses this PAC file and skips the search.
 - `--curlp-version` prints the version of `curlp`.
+- `--curlp-no-ca` skips the additional certificates for this call (see Certificates).
+- `CURLP_CURL_PATH` selects the `curl` to run, as a path or as a name looked up in `PATH`. A
+  value that cannot be found, or that is `curlp` itself, is an error.
 - `-v` shows which PAC file and proxy `curlp` uses, besides the output of `curl`.
+
+`curlp` can be installed under the name `curl` (for example as a symlink earlier in `PATH`). It
+skips itself when it searches `PATH` for the real `curl`, whether the file is a symlink or a hard
+link. A different copy of `curlp` that is found first stops with an error, because `curlp` sets
+`CURLP_ACTIVE` for the `curl` it starts and refuses to run if that variable is set. Set
+`CURLP_CURL_PATH` to the real `curl` in that case.
 
 A URL without a scheme is treated as `http`, like `curl` does.
 
@@ -63,7 +72,12 @@ trusted next to the standard roots. Files ending in `.pem`, `.crt`, or `.cer` co
 their `CERTIFICATE` blocks, so private keys are never copied. `curlp` writes the combined bundle
 to `~/.cache/curlp/ca-bundle.pem` and gives it to `curl` with `--cacert`.
 
-This is skipped if the arguments contain `--cacert`, `--capath`, `-k`, or `--insecure`.
+This is skipped if the arguments contain `--cacert`, `--capath`, `-k`, or `--insecure`, or with
+`--curlp-no-ca` for a single call. Setting `CURLP_CA_PATH` to an empty value turns it off for
+good, while leaving it unset uses `~/.config/ssl`.
+
+Every certificate in that location is trusted by `curlp`, so only put certificate authorities
+there that should be trusted.
 
 ## License
 
