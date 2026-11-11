@@ -49,6 +49,11 @@ func TestParseArgs(t *testing.T) {
 			want: options{noPAC: true, pacFile: "a.pac", curlArgs: []string{"http://x"}},
 		},
 		{
+			name: "local DNS switch is not forwarded",
+			argv: []string{"--local-dns", "http://x"},
+			want: options{localDNS: true, curlArgs: []string{"http://x"}},
+		},
+		{
 			name: "own CA switch is not forwarded",
 			argv: []string{"--no-curlp-ca", "https://x"},
 			want: options{noCA: true, curlArgs: []string{"https://x"}},

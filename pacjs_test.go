@@ -35,7 +35,7 @@ func findProxy(t *testing.T, script, url, host string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := rt.findProxy(url, host)
+	got, err := rt.findProxy(url, host, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,10 +47,10 @@ func TestClusterPAC(t *testing.T) {
 		host string
 		want string
 	}{
-		{"git.example.test", "socks5://127.0.0.1:1111"},
-		{"example.test", "socks5://127.0.0.1:1111"},
-		{"192.168.0.10", "socks5://127.0.0.1:1111"},
-		{"intranet.example", "socks5://127.0.0.1:1111"},
+		{"git.example.test", "socks5h://127.0.0.1:1111"},
+		{"example.test", "socks5h://127.0.0.1:1111"},
+		{"192.168.0.10", "socks5h://127.0.0.1:1111"},
+		{"intranet.example", "socks5h://127.0.0.1:1111"},
 		{"example.com", ""},
 		{"192.169.0.1", ""},
 	}
@@ -72,15 +72,16 @@ func TestProxyURLFromDirectives(t *testing.T) {
 		{"DIRECT; PROXY a:3128", ""},
 		{"proxy a:3128", "http://a:3128"},
 		{"HTTPS secure:443", "https://secure:443"},
-		{"SOCKS4 s:1080", "socks4://s:1080"},
-		{"SOCKS5 s:1080", "socks5://s:1080"},
+		{"SOCKS4 s:1080", "socks4a://s:1080"},
+		{"SOCKS5 s:1080", "socks5h://s:1080"},
+		{"SOCKS s:1080", "socks5h://s:1080"},
 		{"BOGUS x:1; PROXY a:3128", "http://a:3128"},
 		{"PROXY", ""},
 		{"", ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.result, func(t *testing.T) {
-			if got := proxyURLFromDirectives(tt.result); got != tt.want {
+			if got := proxyURLFromDirectives(tt.result, false); got != tt.want {
 				t.Errorf("got %q, want %q", got, tt.want)
 			}
 		})
@@ -120,7 +121,7 @@ func TestPACUnsupportedAndBrokenScripts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := rt.findProxy("http://x/", "x"); err == nil {
+	if _, err := rt.findProxy("http://x/", "x", false); err == nil {
 		t.Error("weekdayRange must report an error instead of guessing")
 	}
 
@@ -135,7 +136,7 @@ func TestPACUnsupportedAndBrokenScripts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := rt.findProxy("http://x/", "x"); err == nil {
+	if _, err := rt.findProxy("http://x/", "x", false); err == nil {
 		t.Error("no return value must be an error")
 	}
 }
@@ -150,10 +151,29 @@ func TestPACRunawayScriptIsInterrupted(t *testing.T) {
 		t.Fatal(err)
 	}
 	start := time.Now()
-	if _, err := rt.findProxy("http://x/", "x"); err == nil {
+	if _, err := rt.findProxy("http://x/", "x", false); err == nil {
 		t.Fatal("expected a timeout error")
 	}
 	if time.Since(start) > 5*time.Second {
 		t.Error("the script was not interrupted in time")
+	}
+}
+
+func TestProxyURLFromDirectivesLocalDNS(t *testing.T) {
+	tests := []struct {
+		result string
+		want   string
+	}{
+		{"SOCKS s:1080", "socks5://s:1080"},
+		{"SOCKS5 s:1080", "socks5://s:1080"},
+		{"SOCKS4 s:1080", "socks4://s:1080"},
+		{"PROXY a:3128", "http://a:3128"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.result, func(t *testing.T) {
+			if got := proxyURLFromDirectives(tt.result, true); got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

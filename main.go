@@ -26,6 +26,8 @@ Options of curlp (all other arguments go to curl):
   --pac-file <path|uri>  Use this PAC file instead of searching for one.
   --no-pac               Do not use a PAC file for this call (wins over --pac-file).
   --no-curlp-ca          Do not trust the additional certificates for this call.
+  --local-dns            Resolve host names locally for SOCKS proxies (socks5://, socks4://)
+                         instead of through the proxy (socks5h://, socks4a://).
   --curlp-version        Print the version of curlp.
   --curlp-env <url>      Print the environment for a program other than curl that requests
                          this URL, one NAME=value per line, and exit: HTTPS_PROXY and
@@ -176,7 +178,7 @@ func planCurl(opts options, cfg config) plan {
 		cfg.log.warnf("Could not use the PAC file from %s: %v; forwarding without a proxy", location, err)
 		return p
 	}
-	proxy, err := runtime.findProxy(target.String(), target.Hostname())
+	proxy, err := runtime.findProxy(target.String(), target.Hostname(), opts.localDNS)
 	if err != nil {
 		cfg.log.warnf("Could not evaluate the PAC file from %s: %v; forwarding without a proxy", location, err)
 		return p

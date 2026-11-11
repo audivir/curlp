@@ -22,6 +22,7 @@ type options struct {
 	envURL      string
 	noCA        bool
 	noPAC       bool
+	localDNS    bool
 	verbose     bool
 	help        bool
 	curlArgs    []string
@@ -63,6 +64,9 @@ func parseArgs(argv []string) (options, error) {
 			continue
 		case arg == "--no-pac":
 			opts.noPAC = true
+			continue
+		case arg == "--local-dns":
+			opts.localDNS = true
 			continue
 		case arg == "--help" || helpFlagRE.MatchString(arg):
 			opts.help = true

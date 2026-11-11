@@ -32,8 +32,8 @@ func TestPlanCurlSetsBothProxyVariablesFromPAC(t *testing.T) {
 
 	p := planCurl(options{curlArgs: []string{"-s", "git.example.test"}}, cfg)
 	want := map[string]string{
-		"http_proxy":  "socks5://127.0.0.1:1111",
-		"https_proxy": "socks5://127.0.0.1:1111",
+		"http_proxy":  "socks5h://127.0.0.1:1111",
+		"https_proxy": "socks5h://127.0.0.1:1111",
 	}
 	if !reflect.DeepEqual(p.env, want) {
 		t.Errorf("env = %v, want %v", p.env, want)
@@ -229,8 +229,8 @@ func TestEnvLines(t *testing.T) {
 	bundle := filepath.Join(cfg.homeDir, ".cache", "curlp", "ca-bundle.pem")
 
 	want := []string{
-		"HTTPS_PROXY=socks5://127.0.0.1:1111",
-		"HTTP_PROXY=socks5://127.0.0.1:1111",
+		"HTTPS_PROXY=socks5h://127.0.0.1:1111",
+		"HTTP_PROXY=socks5h://127.0.0.1:1111",
 		"SSL_CERT_FILE=" + bundle,
 	}
 	if got := envLines("https://git.example.test", options{}, cfg); !reflect.DeepEqual(got, want) {
@@ -245,7 +245,23 @@ func TestEnvLines(t *testing.T) {
 		t.Errorf("--no-curlp-ca: got %v, want %v", got, want[:2])
 	}
 
+	localWant := []string{"HTTPS_PROXY=socks5://127.0.0.1:1111", "HTTP_PROXY=socks5://127.0.0.1:1111"}
+	if got := envLines("https://git.example.test", options{noCA: true, localDNS: true}, cfg); !reflect.DeepEqual(got, localWant) {
+		t.Errorf("--local-dns: got %v, want %v", got, localWant)
+	}
+
 	if got := envLines("https://git.example.test", options{noPAC: true, noCA: true}, cfg); len(got) != 0 {
 		t.Errorf("nothing to set: got %v", got)
+	}
+}
+
+func TestPlanCurlLocalDNS(t *testing.T) {
+	var log bytes.Buffer
+	cfg := testConfig(t, &log)
+	writeFile(t, filepath.Join(cfg.configDir, "curlp", "proxy.pac"), clusterPAC)
+
+	p := planCurl(options{localDNS: true, curlArgs: []string{"git.example.test"}}, cfg)
+	if got := p.env["https_proxy"]; got != "socks5://127.0.0.1:1111" {
+		t.Errorf("https_proxy = %q, want socks5://127.0.0.1:1111", got)
 	}
 }

@@ -156,7 +156,7 @@ func (r *pacRuntime) guard(fn func() error) error {
 
 // findProxy returns the proxy URL the script selects for rawURL, or an empty string for a
 // direct connection.
-func (r *pacRuntime) findProxy(rawURL, host string) (string, error) {
+func (r *pacRuntime) findProxy(rawURL, host string, localDNS bool) (string, error) {
 	var result goja.Value
 	err := r.guard(func() error {
 		var callErr error
@@ -169,14 +169,15 @@ func (r *pacRuntime) findProxy(rawURL, host string) (string, error) {
 	if goja.IsUndefined(result) || goja.IsNull(result) {
 		return "", errors.New("FindProxyForURL returned no value")
 	}
-	return proxyURLFromDirectives(result.String()), nil
+	return proxyURLFromDirectives(result.String(), localDNS), nil
 }
 
 // proxyURLFromDirectives converts the first usable entry of a PAC result like
 // "PROXY a:80; DIRECT" into a proxy URL for curl.
 //
-// DIRECT as the first usable entry and unknown directives give an empty string.
-func proxyURLFromDirectives(result string) string {
+// DIRECT as the first usable entry and unknown directives give an empty string. SOCKS proxies
+// resolve the host name themselves (socks5h, socks4a) unless localDNS is set.
+func proxyURLFromDirectives(result string, localDNS bool) string {
 	for _, part := range strings.Split(result, ";") {
 		fields := strings.Fields(part)
 		if len(fields) == 0 {
@@ -195,9 +196,15 @@ func proxyURLFromDirectives(result string) string {
 		case "HTTPS":
 			return "https://" + fields[1]
 		case "SOCKS", "SOCKS5":
-			return "socks5://" + fields[1]
+			if localDNS {
+				return "socks5://" + fields[1]
+			}
+			return "socks5h://" + fields[1]
 		case "SOCKS4":
-			return "socks4://" + fields[1]
+			if localDNS {
+				return "socks4://" + fields[1]
+			}
+			return "socks4a://" + fields[1]
 		}
 	}
 	return ""

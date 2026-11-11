@@ -36,6 +36,8 @@ curlp --pac-file ./proxy.pac https://intranet.example.com
   exits without running `curl`: `HTTPS_PROXY` and `HTTP_PROXY` if the PAC selects a proxy, and
   `SSL_CERT_FILE` with the bundle of the additional certificates if there are any. One
   `NAME=value` per line, nothing for a direct request without extra certificates.
+- `--local-dns` resolves host names locally for SOCKS proxies (`socks5://`, `socks4://`) instead
+  of through the proxy (`socks5h://`, `socks4a://`). It also applies to `--curlp-env`.
 - `--no-curlp-ca` skips the additional certificates for this call (see Certificates).
 - `CURLP_CURL_PATH` selects the `curl` to run, as a path or as a name looked up in `PATH`. A
   value that cannot be found, or that is `curlp` itself, is an error.
@@ -63,8 +65,9 @@ A PAC location is a path, a `file:` URI, or an `http(s):` URL. Without a PAC fil
 to load, `curlp` prints a warning and runs `curl` without a proxy.
 
 The proxy of the first usable entry of the result is used. `PROXY` and `HTTP` become `http://`,
-`HTTPS` becomes `https://`, `SOCKS` and `SOCKS5` become `socks5://`, and `SOCKS4` becomes
-`socks4://`. `DIRECT` as the first entry means no proxy, and later entries are not tried.
+`HTTPS` becomes `https://`, `SOCKS` and `SOCKS5` become `socks5h://`, and `SOCKS4` becomes
+`socks4a://`, so the proxy resolves the host name. With `--local-dns` they become `socks5://` and
+`socks4://`, and the host name is resolved locally. `DIRECT` as the first entry means no proxy, and later entries are not tried.
 
 The PAC functions `weekdayRange`, `dateRange`, and `timeRange` are not supported. A script that
 calls them is reported as an error. Host names inside a PAC script are resolved with the resolver
